@@ -1,0 +1,108 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql" // or "sqlite" / "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum City {
+  Chandigarh
+  Mohali
+  Zirakpur
+  Panchkula
+  Other
+}
+
+enum PropertyType {
+  Apartment
+  Villa
+  Plot
+  Office
+  Retail
+}
+
+enum BHK {
+  ONE    @map("1")
+  TWO    @map("2")
+  THREE  @map("3")
+  FOUR   @map("4")
+  STUDIO @map("Studio")
+}
+
+enum Purpose {
+  Buy
+  Rent
+}
+
+enum Timeline {
+  T0_3M     @map("0-3m")
+  T3_6M     @map("3-6m")
+  GT_6M     @map(">6m")
+  EXPLORING @map("Exploring")
+}
+
+enum Source {
+  WEBSITE  @map("Website")
+  REFERRAL @map("Referral")
+  WALK_IN  @map("Walk-in")
+  CALL     @map("Call")
+  OTHER    @map("Other")
+}
+
+enum Status {
+  New
+  Qualified
+  Contacted
+  Visited
+  Negotiation
+  Converted
+  Dropped
+}
+
+model User {
+  id        String         @id @default(uuid())
+  username  String         @unique
+  password  String // bcrypt hash
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  buyers    Buyer[]
+  history   BuyerHistory[] @relation("UserChanges")
+}
+
+model Buyer {
+  id           String         @id @default(uuid())
+  fullName     String
+  email        String?
+  phone        String
+  city         City
+  propertyType PropertyType
+  bhk          BHK?
+  purpose      Purpose
+  budgetMin    Int?
+  budgetMax    Int?
+  timeline     Timeline
+  source       Source
+  status       Status         @default(New)
+  notes        String?
+  tags         String[]       @db.Text
+  ownerId      String
+  owner        User           @relation(fields: [ownerId], references: [id])
+  updatedAt    DateTime       @updatedAt
+  history      BuyerHistory[]
+
+  @@index([updatedAt])
+  @@index([ownerId])
+}
+
+model BuyerHistory {
+  id        String   @id @default(uuid())
+  buyerId   String
+  buyer     Buyer    @relation(fields: [buyerId], references: [id])
+  changedBy String
+  user      User?    @relation("UserChanges", fields: [changedBy], references: [id])
+  changedAt DateTime @default(now())
+  diff      Json
+}
