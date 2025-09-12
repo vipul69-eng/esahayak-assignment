@@ -1,19 +1,38 @@
-// app/buyers/new/page.tsx
+// app/buyers/[id]/edit-form.tsx
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function NewBuyerPage() {
+function formatZodFlatten(err: any): string {
+  if (!err) return "Update failed";
+  if (typeof err === "string") return err;
+  if (Array.isArray(err.formErrors) && err.formErrors.length) {
+    return err.formErrors.join(", ");
+  }
+  if (err.fieldErrors && typeof err.fieldErrors === "object") {
+    const parts: string[] = [];
+    for (const [field, msgs] of Object.entries(err.fieldErrors)) {
+      if (Array.isArray(msgs) && msgs.length)
+        parts.push(`${field}: ${msgs.join(", ")}`);
+    }
+    if (parts.length) return parts.join(" | ");
+  }
+  if (err.message && typeof err.message === "string") return err.message;
+  return "Update failed";
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default function EditForm({ buyer }: { buyer: any }) {
   const r = useRouter();
   const [err, setErr] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErr(null);
-    setSubmitting(true);
+    setSaving(true);
     const fd = new FormData(e.currentTarget);
     const payload = {
+      updatedAt: buyer.updatedAt,
       fullName: fd.get("fullName"),
       email: fd.get("email") || "",
       phone: fd.get("phone"),
@@ -32,28 +51,28 @@ export default function NewBuyerPage() {
         .filter(Boolean),
       status: fd.get("status") || undefined,
     };
-    const res = await fetch("/api/buyers", {
-      method: "POST",
+    const res = await fetch(`/api/buyers/${buyer.id}`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    setSubmitting(false);
-    if (res.ok) r.push("/buyers");
-    else {
-      const j = await res.json();
-      setErr(j.error ? JSON.stringify(j.error) : "Failed to create");
+    setSaving(false);
+    if (res.ok) {
+      r.refresh();
+    } else {
+      const j = await res.json().catch(() => null);
+      setErr(formatZodFlatten(j?.error));
     }
   }
 
   return (
     <form
-      className="space-y-3"
       onSubmit={onSubmit}
-      aria-describedby="form-error"
+      className="space-y-3"
+      aria-describedby="edit-error"
     >
-      <h1 className="text-xl font-semibold">Create Buyer</h1>
       {err && (
-        <p id="form-error" role="alert" className="text-red-600">
+        <p id="edit-error" role="alert" className="text-red-600">
           {err}
         </p>
       )}
@@ -63,6 +82,7 @@ export default function NewBuyerPage() {
         <input
           id="fullName"
           name="fullName"
+          defaultValue={buyer.fullName}
           required
           minLength={2}
           maxLength={80}
@@ -70,16 +90,27 @@ export default function NewBuyerPage() {
       </div>
       <div>
         <label htmlFor="email">Email</label>
-        <input id="email" name="email" type="email" />
+        <input
+          id="email"
+          name="email"
+          type="email"
+          defaultValue={buyer.email ?? ""}
+        />
       </div>
       <div>
         <label htmlFor="phone">Phone</label>
-        <input id="phone" name="phone" pattern="\d{10,15}" required />
+        <input
+          id="phone"
+          name="phone"
+          pattern="\d{10,15}"
+          defaultValue={buyer.phone}
+          required
+        />
       </div>
 
       <div>
         <label htmlFor="city">City</label>
-        <select id="city" name="city" required>
+        <select id="city" name="city" defaultValue={buyer.city}>
           <option>Chandigarh</option>
           <option>Mohali</option>
           <option>Zirakpur</option>
@@ -90,7 +121,11 @@ export default function NewBuyerPage() {
 
       <div>
         <label htmlFor="propertyType">Property Type</label>
-        <select id="propertyType" name="propertyType" required>
+        <select
+          id="propertyType"
+          name="propertyType"
+          defaultValue={buyer.propertyType}
+        >
           <option>Apartment</option>
           <option>Villa</option>
           <option>Plot</option>
@@ -100,8 +135,8 @@ export default function NewBuyerPage() {
       </div>
 
       <div>
-        <label htmlFor="bhk">BHK (Apartment/Villa)</label>
-        <select id="bhk" name="bhk">
+        <label htmlFor="bhk">BHK</label>
+        <select id="bhk" name="bhk" defaultValue={buyer.bhk ?? ""}>
           <option value="">None</option>
           <option>1</option>
           <option>2</option>
@@ -113,7 +148,7 @@ export default function NewBuyerPage() {
 
       <div>
         <label htmlFor="purpose">Purpose</label>
-        <select id="purpose" name="purpose" required>
+        <select id="purpose" name="purpose" defaultValue={buyer.purpose}>
           <option>Buy</option>
           <option>Rent</option>
         </select>
@@ -122,17 +157,29 @@ export default function NewBuyerPage() {
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label htmlFor="budgetMin">Budget Min</label>
-          <input id="budgetMin" name="budgetMin" type="number" min="0" />
+          <input
+            id="budgetMin"
+            name="budgetMin"
+            type="number"
+            defaultValue={buyer.budgetMin ?? ""}
+            min="0"
+          />
         </div>
         <div>
           <label htmlFor="budgetMax">Budget Max</label>
-          <input id="budgetMax" name="budgetMax" type="number" min="0" />
+          <input
+            id="budgetMax"
+            name="budgetMax"
+            type="number"
+            defaultValue={buyer.budgetMax ?? ""}
+            min="0"
+          />
         </div>
       </div>
 
       <div>
         <label htmlFor="timeline">Timeline</label>
-        <select id="timeline" name="timeline" required>
+        <select id="timeline" name="timeline" defaultValue={buyer.timeline}>
           <option>0-3m</option>
           <option>3-6m</option>
           <option>&gt;6m</option>
@@ -142,7 +189,7 @@ export default function NewBuyerPage() {
 
       <div>
         <label htmlFor="source">Source</label>
-        <select id="source" name="source" required>
+        <select id="source" name="source" defaultValue={buyer.source}>
           <option>Website</option>
           <option>Referral</option>
           <option>Walk-in</option>
@@ -153,7 +200,7 @@ export default function NewBuyerPage() {
 
       <div>
         <label htmlFor="status">Status</label>
-        <select id="status" name="status" defaultValue="New">
+        <select id="status" name="status" defaultValue={buyer.status}>
           <option>New</option>
           <option>Qualified</option>
           <option>Contacted</option>
@@ -166,15 +213,24 @@ export default function NewBuyerPage() {
 
       <div>
         <label htmlFor="notes">Notes</label>
-        <textarea id="notes" name="notes" maxLength={1000} />
+        <textarea
+          id="notes"
+          name="notes"
+          defaultValue={buyer.notes ?? ""}
+          maxLength={1000}
+        />
       </div>
       <div>
         <label htmlFor="tags">Tags (| separated)</label>
-        <input id="tags" name="tags" placeholder="hot|nr|vip" />
+        <input
+          id="tags"
+          name="tags"
+          defaultValue={(buyer.tags ?? []).join("|")}
+        />
       </div>
 
-      <button type="submit" disabled={submitting}>
-        {submitting ? "Saving..." : "Create"}
+      <button type="submit" disabled={saving}>
+        {saving ? "Saving..." : "Save Changes"}
       </button>
     </form>
   );

@@ -1,200 +1,127 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/buyers/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { PrismaClient, City, PropertyType, Purpose } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import {
-  PrismaClient,
-  BHK,
-  Timeline,
-  Source,
-  Status,
-  City,
-  PropertyType,
-  Purpose,
-} from "@prisma/client";
-import { z } from "zod";
+  buyerSchema,
+  toBhk,
+  toTimeline,
+  toSource,
+  toStatus,
+} from "@/lib/buyer";
+import { rateLimit } from "@/lib/rate-limit";
 
 const prisma = new PrismaClient();
+const PAGE_SIZE = 10;
 
-// Mappers from UI/CSV strings -> Prisma enum identifiers
-const toBhk = (v?: string | null): BHK | null => {
-  if (!v) return null;
-  switch (v) {
-    case "1":
-      return BHK.ONE;
-    case "2":
-      return BHK.TWO;
-    case "3":
-      return BHK.THREE;
-    case "4":
-      return BHK.FOUR;
-    case "Studio":
-      return BHK.STUDIO;
-    default:
-      throw new Error("Invalid BHK");
+// GET /api/buyers?search=&city=&propertyType=&status=&timeline=&page=1&sort=updatedAt:desc
+export async function GET(req: NextRequest) {
+  const session = await getSession();
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { searchParams } = req.nextUrl;
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+  const search = (searchParams.get("search") || "").trim();
+  const city = searchParams.get("city") || "";
+  const propertyType = searchParams.get("propertyType") || "";
+  const status = searchParams.get("status") || "";
+  const timeline = searchParams.get("timeline") || "";
+  const [sortField, sortDir] = (
+    searchParams.get("sort") || "updatedAt:desc"
+  ).split(":");
+  const orderBy = {
+    [sortField]: sortDir?.toLowerCase() === "asc" ? "asc" : "desc",
+  } as const;
+
+  const where: any = {};
+  if (city) where.city = city as City;
+  if (propertyType) where.propertyType = propertyType as PropertyType;
+  if (status) where.status = toStatus(status);
+  if (timeline) where.timeline = toTimeline(timeline);
+  if (search) {
+    where.OR = [
+      { fullName: { contains: search, mode: "insensitive" } },
+      { phone: { contains: search } },
+      { email: { contains: search, mode: "insensitive" } },
+    ];
   }
-};
 
-const toTimeline = (v: string): Timeline => {
-  switch (v) {
-    case "0-3m":
-      return Timeline.ZERO_TO_THREE; // @map("0-3m")
-    case "3-6m":
-      return Timeline.THREE_TO_SIX; // @map("3-6m")
-    case ">6m":
-      return Timeline.MORE_THAN_SIX; // @map(">6m")
-    case "Exploring":
-      return Timeline.EXPLORING; // @map("Exploring")
-    default:
-      throw new Error("Invalid timeline");
-  }
-};
+  const [total, items] = await Promise.all([
+    prisma.buyer.count({ where }),
+    prisma.buyer.findMany({
+      where,
+      orderBy,
+      take: PAGE_SIZE,
+      skip: (page - 1) * PAGE_SIZE,
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        city: true,
+        propertyType: true,
+        budgetMin: true,
+        budgetMax: true,
+        timeline: true,
+        status: true,
+        updatedAt: true,
+      },
+    }),
+  ]);
 
-const toSource = (v: string): Source => {
-  switch (v) {
-    case "Website":
-      return Source.WEBSITE;
-    case "Referral":
-      return Source.REFERRAL;
-    case "Walk-in":
-      return Source.WALK_IN; // @map("Walk-in")
-    case "Call":
-      return Source.CALL;
-    case "Other":
-      return Source.OTHER;
-    default:
-      throw new Error("Invalid source");
-  }
-};
+  return NextResponse.json({ total, page, pageSize: PAGE_SIZE, items });
+}
 
-const toStatus = (v?: string | null): Status => {
-  switch (v ?? "New") {
-    case "New":
-      return Status.NEW;
-    case "Qualified":
-      return Status.QUALIFIED;
-    case "Contacted":
-      return Status.CONTACTED;
-    case "Visited":
-      return Status.VISITED;
-    case "Negotiation":
-      return Status.NEGOTIATION;
-    case "Converted":
-      return Status.CONVERTED;
-    case "Dropped":
-      return Status.DROPPED;
-    default:
-      throw new Error("Invalid status");
-  }
-};
-
-// Zod validation for incoming payload (UI/CSV strings)
-const buyerSchema = z
-  .object({
-    fullName: z.string().min(2).max(80),
-    email: z.string().email().optional().or(z.literal("")),
-    phone: z.string().regex(/^\d{10,15}$/),
-    city: z.enum(["Chandigarh", "Mohali", "Zirakpur", "Panchkula", "Other"]),
-    propertyType: z.enum(["Apartment", "Villa", "Plot", "Office", "Retail"]),
-    bhk: z.enum(["1", "2", "3", "4", "Studio"]).optional(),
-    purpose: z.enum(["Buy", "Rent"]),
-    budgetMin: z.number().int().nonnegative().optional(),
-    budgetMax: z.number().int().nonnegative().optional(),
-    timeline: z.enum(["0-3m", "3-6m", ">6m", "Exploring"]),
-    source: z.enum(["Website", "Referral", "Walk-in", "Call", "Other"]),
-    status: z
-      .enum([
-        "New",
-        "Qualified",
-        "Contacted",
-        "Visited",
-        "Negotiation",
-        "Converted",
-        "Dropped",
-      ])
-      .optional(),
-    notes: z.string().max(1000).optional(),
-    tags: z.array(z.string()).optional(),
-  })
-  .superRefine((d, ctx) => {
-    if (
-      d.budgetMin != null &&
-      d.budgetMax != null &&
-      d.budgetMax < d.budgetMin
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "budgetMax must be ≥ budgetMin",
-        path: ["budgetMax"],
-      });
-    }
-    if (
-      (d.propertyType === "Apartment" || d.propertyType === "Villa") &&
-      !d.bhk
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "bhk required for Apartment/Villa",
-        path: ["bhk"],
-      });
-    }
-  });
-
+// POST /api/buyers
 export async function POST(req: NextRequest) {
-  try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const session = await getSession();
+  if (!session)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = await req.json();
-    const parsed = buyerSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.flatten() },
-        { status: 400 },
-      );
-    }
-    const data = parsed.data;
+  if (!rateLimit(`create:${session.sub}`)) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
 
-    const buyer = await prisma.$transaction(async (tx) => {
-      const created = await tx.buyer.create({
-        data: {
-          fullName: data.fullName,
-          email: data.email?.trim() ? data.email : null,
-          phone: data.phone,
-          city: data.city as City,
-          propertyType: data.propertyType as PropertyType,
-          bhk: toBhk(data.bhk ?? null),
-          purpose: data.purpose as Purpose,
-          budgetMin: data.budgetMin ?? null,
-          budgetMax: data.budgetMax ?? null,
-          timeline: toTimeline(data.timeline),
-          source: toSource(data.source),
-          status: toStatus(data.status ?? null),
-          notes: data.notes ?? null,
-          tags: data.tags ?? [],
-          ownerId: session.sub,
-        },
-      });
-
-      await tx.buyerHistory.create({
-        data: {
-          buyerId: created.id,
-          changedBy: session.sub,
-          diff: { created: true, by: session.username },
-        },
-      });
-
-      return created;
-    });
-
-    return NextResponse.json({ buyer }, { status: 201 });
-  } catch (err: any) {
-    console.error("Create buyer error", err);
+  const body = await req.json();
+  const parsed = buyerSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Failed to create buyer" },
-      { status: 500 },
+      { error: parsed.error.flatten() },
+      { status: 400 },
     );
   }
+  const d = parsed.data;
+
+  const created = await prisma.$transaction(async (tx) => {
+    const buyer = await tx.buyer.create({
+      data: {
+        fullName: d.fullName,
+        email: d.email?.trim() ? d.email : null,
+        phone: d.phone,
+        city: d.city as City,
+        propertyType: d.propertyType as PropertyType,
+        bhk: toBhk(d.bhk ?? null),
+        purpose: d.purpose as Purpose,
+        budgetMin: d.budgetMin ?? null,
+        budgetMax: d.budgetMax ?? null,
+        timeline: toTimeline(d.timeline),
+        source: toSource(d.source),
+        status: toStatus(d.status ?? null),
+        notes: d.notes ?? null,
+        tags: d.tags ?? [],
+        ownerId: session.sub,
+      },
+    });
+    await tx.buyerHistory.create({
+      data: {
+        buyerId: buyer.id,
+        changedBy: session.sub,
+        diff: { created: true },
+      },
+    });
+    return buyer;
+  });
+
+  return NextResponse.json({ buyer: created }, { status: 201 });
 }
