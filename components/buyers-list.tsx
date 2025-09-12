@@ -1,3 +1,4 @@
+/** eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -15,6 +16,28 @@ import {
   Clock,
   MapPin,
 } from "lucide-react";
+
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Buyer {
   id: string;
@@ -126,360 +149,347 @@ export default function BuyersList() {
     return "—";
   };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      New: "bg-blue-50 text-blue-700 border-blue-200",
-      Qualified: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      Contacted: "bg-amber-50 text-amber-700 border-amber-200",
-      Visited: "bg-indigo-50 text-indigo-700 border-indigo-200",
-      Negotiation: "bg-orange-50 text-orange-700 border-orange-200",
-      Converted: "bg-green-50 text-green-700 border-green-200",
-      Dropped: "bg-red-50 text-red-700 border-red-200",
+  const getStatusVariant = (
+    status: string,
+  ): "default" | "outline" | "secondary" | "destructive" => {
+    const variants = {
+      New: "default",
+      Qualified: "default",
+      Contacted: "secondary",
+      Visited: "secondary",
+      Negotiation: "outline",
+      Converted: "default",
+      Dropped: "destructive",
     };
-    return (
-      colors[status as keyof typeof colors] ||
-      "bg-gray-50 text-gray-700 border-gray-200"
-    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return variants[status as keyof typeof variants] || ("outline" as any);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50/50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-600 font-medium">Loading buyers...</p>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto p-6 space-y-6">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-8 w-48" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-10 w-full" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-0">
+              <div className="space-y-4 p-6">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200/60">
-        <div className="px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-900 text-balance">
-                Buyers Dashboard
-              </h1>
-              <p className="text-gray-600 mt-1">
-                Manage and track your property buyers
-              </p>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-6 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Buyers
+            </CardTitle>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="font-medium">{data?.pagination.total || 0}</span>
+              <span>Total Buyers</span>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-6 text-sm">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-600" />
-                  <span className="font-medium text-gray-900">
-                    {data?.pagination.total || 0}
-                  </span>
-                  <span className="text-gray-600">Total Buyers</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+          </CardHeader>
+        </Card>
 
-      <div className="px-8 py-6 space-y-6">
-        {/* Search and Filters */}
-        <div className="bg-white rounded-xl border border-gray-200/60 shadow-sm">
-          <div className="p-6 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Filter className="w-4 h-4" />
+              Search & Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
             {/* Search Bar */}
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
                 placeholder="Search by name, phone, or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-500"
+                className="pl-10"
               />
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Filters</span>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label className="text-sm font-medium flex items-center gap-2">
                   <MapPin className="w-4 h-4" />
                   City
                 </label>
-                <select
+                <Select
                   value={currentCity}
-                  onChange={(e) => updateFilter("city", e.target.value)}
-                  className="w-full px-3 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-gray-900"
+                  onValueChange={(value) => updateFilter("city", value)}
                 >
-                  <option value="all">All Cities</option>
-                  <option value="Chandigarh">Chandigarh</option>
-                  <option value="Mohali">Mohali</option>
-                  <option value="Zirakpur">Zirakpur</option>
-                  <option value="Panchkula">Panchkula</option>
-                  <option value="Other">Other</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Cities" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Cities</SelectItem>
+                    <SelectItem value="Chandigarh">Chandigarh</SelectItem>
+                    <SelectItem value="Mohali">Mohali</SelectItem>
+                    <SelectItem value="Zirakpur">Zirakpur</SelectItem>
+                    <SelectItem value="Panchkula">Panchkula</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Property Type
-                </label>
-                <select
+                <label className="text-sm font-medium">Property Type</label>
+                <Select
                   value={currentPropertyType}
-                  onChange={(e) => updateFilter("propertyType", e.target.value)}
-                  className="w-full px-3 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-gray-900"
+                  onValueChange={(value) => updateFilter("propertyType", value)}
                 >
-                  <option value="all">All Property Types</option>
-                  <option value="Apartment">Apartment</option>
-                  <option value="Villa">Villa</option>
-                  <option value="Plot">Plot</option>
-                  <option value="Office">Office</option>
-                  <option value="Retail">Retail</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Property Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Property Types</SelectItem>
+                    <SelectItem value="Apartment">Apartment</SelectItem>
+                    <SelectItem value="Villa">Villa</SelectItem>
+                    <SelectItem value="Plot">Plot</SelectItem>
+                    <SelectItem value="Office">Office</SelectItem>
+                    <SelectItem value="Retail">Retail</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label className="text-sm font-medium flex items-center gap-2">
                   <TrendingUp className="w-4 h-4" />
                   Status
                 </label>
-                <select
+                <Select
                   value={currentStatus}
-                  onChange={(e) => updateFilter("status", e.target.value)}
-                  className="w-full px-3 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-gray-900"
+                  onValueChange={(value) => updateFilter("status", value)}
                 >
-                  <option value="all">All Status</option>
-                  <option value="New">New</option>
-                  <option value="Qualified">Qualified</option>
-                  <option value="Contacted">Contacted</option>
-                  <option value="Visited">Visited</option>
-                  <option value="Negotiation">Negotiation</option>
-                  <option value="Converted">Converted</option>
-                  <option value="Dropped">Dropped</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="New">New</SelectItem>
+                    <SelectItem value="Qualified">Qualified</SelectItem>
+                    <SelectItem value="Contacted">Contacted</SelectItem>
+                    <SelectItem value="Visited">Visited</SelectItem>
+                    <SelectItem value="Negotiation">Negotiation</SelectItem>
+                    <SelectItem value="Converted">Converted</SelectItem>
+                    <SelectItem value="Dropped">Dropped</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <label className="text-sm font-medium flex items-center gap-2">
                   <Clock className="w-4 h-4" />
                   Timeline
                 </label>
-                <select
+                <Select
                   value={currentTimeline}
-                  onChange={(e) => updateFilter("timeline", e.target.value)}
-                  className="w-full px-3 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 text-gray-900"
+                  onValueChange={(value) => updateFilter("timeline", value)}
                 >
-                  <option value="all">All Timeline</option>
-                  <option value="0-3m">0-3 months</option>
-                  <option value="3-6m">3-6 months</option>
-                  <option value=">6m">&gt;6 months</option>
-                  <option value="Exploring">Exploring</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Timeline" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Timeline</SelectItem>
+                    <SelectItem value="0-3m">0-3 months</SelectItem>
+                    <SelectItem value="3-6m">3-6 months</SelectItem>
+                    <SelectItem value=">6m">&gt;6 months</SelectItem>
+                    <SelectItem value="Exploring">Exploring</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Results Table */}
-        <div className="bg-white rounded-xl border border-gray-200/60 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-200/60">
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Buyer Details
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Location & Type
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Budget Range
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Timeline
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Last Updated
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200/60">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Buyer Details</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Location & Type</TableHead>
+                  <TableHead>Budget Range</TableHead>
+                  <TableHead>Timeline</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Updated</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {data?.buyers.map((buyer) => (
-                  <tr
-                    key={buyer.id}
-                    className="hover:bg-gray-50/50 transition-colors duration-150"
-                  >
-                    <td className="px-6 py-4">
+                  <TableRow key={buyer.id}>
+                    <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                          {buyer.fullName
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .toUpperCase()}
-                        </div>
+                        <Avatar>
+                          <AvatarFallback className="bg-primary text-primary-foreground">
+                            {buyer.fullName
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
                         <div>
-                          <div className="font-semibold text-gray-900">
-                            {buyer.fullName}
-                          </div>
+                          <div className="font-semibold">{buyer.fullName}</div>
                           {buyer.email && (
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-muted-foreground">
                               {buyer.email}
                             </div>
                           )}
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">
-                        {buyer.phone}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{buyer.phone}</div>
+                    </TableCell>
+                    <TableCell>
                       <div className="space-y-1">
-                        <div className="text-sm font-medium text-gray-900">
-                          {buyer.city}
-                        </div>
-                        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-md inline-block">
+                        <div className="font-medium">{buyer.city}</div>
+                        <Badge variant="secondary" className="text-xs">
                           {buyer.propertyType}
-                        </div>
+                        </Badge>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">
                         {formatBudget(buyer.budgetMin, buyer.budgetMax)}
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
-                        {buyer.timeline}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(buyer.status)}`}
-                      >
+                    </TableCell>
+                    <TableCell>{buyer.timeline}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(buyer.status)}>
                         {buyer.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-500">
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm text-muted-foreground">
                         {new Date(buyer.updatedAt).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
                           year: "numeric",
                         })}
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-2">
-                        <a
-                          href={`/buyers/${buyer.id}`}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-150"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View
-                        </a>
-                        <a
-                          href={`/buyers/${buyer.id}?edit=true`}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors duration-150"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          Edit
-                        </a>
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={`/buyers/${buyer.id}`}>
+                            <Eye className="w-4 h-4 mr-1" />
+                            View
+                          </a>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={`/buyers/${buyer.id}?edit=true`}>
+                            <Edit3 className="w-4 h-4 mr-1" />
+                            Edit
+                          </a>
+                        </Button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
 
-          {/* Pagination */}
-          {data && data.pagination.totalPages > 1 && (
-            <div className="bg-gray-50/30 border-t border-gray-200/60 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  Showing{" "}
-                  <span className="font-medium text-gray-900">
-                    {(data.pagination.page - 1) * data.pagination.limit + 1}
-                  </span>{" "}
-                  to{" "}
-                  <span className="font-medium text-gray-900">
-                    {Math.min(
-                      data.pagination.page * data.pagination.limit,
-                      data.pagination.total,
-                    )}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-medium text-gray-900">
-                    {data.pagination.total}
-                  </span>{" "}
-                  results
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => updatePage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    Previous
-                  </button>
-
-                  <div className="flex gap-1">
-                    {Array.from(
-                      { length: Math.min(5, data.pagination.totalPages) },
-                      (_, i) => {
-                        const page = i + 1;
-                        return (
-                          <button
-                            key={page}
-                            onClick={() => updatePage(page)}
-                            className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-150 ${
-                              page === data.pagination.page
-                                ? "bg-blue-600 text-white"
-                                : "text-gray-700 bg-white border border-gray-200 hover:bg-gray-50"
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        );
-                      },
-                    )}
+            {data && data.pagination.totalPages > 1 && (
+              <div className="border-t p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Showing{" "}
+                    <span className="font-medium">
+                      {(data.pagination.page - 1) * data.pagination.limit + 1}
+                    </span>{" "}
+                    to{" "}
+                    <span className="font-medium">
+                      {Math.min(
+                        data.pagination.page * data.pagination.limit,
+                        data.pagination.total,
+                      )}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-medium">{data.pagination.total}</span>{" "}
+                    results
                   </div>
 
-                  <button
-                    onClick={() =>
-                      updatePage(
-                        Math.min(data.pagination.totalPages, currentPage + 1),
-                      )
-                    }
-                    disabled={currentPage === data.pagination.totalPages}
-                    className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
-                  >
-                    Next
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updatePage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-1" />
+                      Previous
+                    </Button>
+
+                    <div className="flex gap-1">
+                      {Array.from(
+                        { length: Math.min(5, data.pagination.totalPages) },
+                        (_, i) => {
+                          const page = i + 1;
+                          return (
+                            <Button
+                              key={page}
+                              variant={
+                                page === data.pagination.page
+                                  ? "default"
+                                  : "outline"
+                              }
+                              size="sm"
+                              onClick={() => updatePage(page)}
+                            >
+                              {page}
+                            </Button>
+                          );
+                        },
+                      )}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        updatePage(
+                          Math.min(data.pagination.totalPages, currentPage + 1),
+                        )
+                      }
+                      disabled={currentPage === data.pagination.totalPages}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
