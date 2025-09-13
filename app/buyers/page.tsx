@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toTimeline } from "@/lib/buyer";
 
 function getFirst(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,7 +65,7 @@ export default async function BuyersPage({
   if (city) where.city = city;
   if (propertyType) where.propertyType = propertyType;
   if (status) where.status = status;
-  if (timeline) where.timeline = timeline;
+  if (timeline) where.timeline = toTimeline(timeline);
   if (search) {
     where.OR = [
       { fullName: { contains: search, mode: "insensitive" } },
@@ -99,12 +100,13 @@ export default async function BuyersPage({
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const exportQs = toQueryString(sp as any);
-
   return (
     <div className="space-y-4 p-2">
       {/* Header bar */}
       <div className="flex flex-wrap items-center gap-3 justify-between">
-        <h1 className="text-xl font-semibold">Buyers</h1>
+        <Button asChild>
+          <Link href="/profile">Profile</Link>
+        </Button>
         <div className="flex items-center gap-2">
           <Button asChild>
             <Link href="/buyers/new">New</Link>

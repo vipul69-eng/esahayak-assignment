@@ -12,8 +12,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetTrigger,
+  SheetFooter,
+  SheetClose,
+} from "@/components/ui/sheet";
+import { humanizeErrorMessage } from "@/lib/errors";
 
 type RowError = { row: number; message: string };
+
 const REQUIRED_HEADERS = [
   "fullName",
   "email",
@@ -39,11 +51,13 @@ export default function ImportCsv() {
   const [inserted, setInserted] = useState<number | null>(null);
   const [errors, setErrors] = useState<RowError[] | null>(null);
   const [clientError, setClientError] = useState<string | null>(null);
+  const [showErrorsSheet, setShowErrorsSheet] = useState(false);
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     setInserted(null);
     setErrors(null);
     setClientError(null);
+    setShowErrorsSheet(false);
     const f = e.target.files?.[0] ?? null;
     setFile(f);
   }
@@ -53,10 +67,11 @@ export default function ImportCsv() {
     setInserted(null);
     setErrors(null);
     setClientError(null);
+    setShowErrorsSheet(false);
 
     const showErr = (msg: string) => {
       setClientError(msg);
-      toast.error(msg); // toast like alert
+      toast.error(msg);
     };
 
     if (!file) {
@@ -109,6 +124,7 @@ export default function ImportCsv() {
     const fd = new FormData();
     fd.append("file", file);
     setBusy(true);
+
     try {
       const res = await fetch("/api/buyers/import", {
         method: "POST",
@@ -119,15 +135,19 @@ export default function ImportCsv() {
         showErr(json.error || "Import failed");
       } else {
         setInserted(json.inserted ?? 0);
-        setErrors(Array.isArray(json.errors) ? json.errors : []);
+        const errs: RowError[] = Array.isArray(json.errors) ? json.errors : [];
+        setErrors(errs);
         if (inputRef.current) inputRef.current.value = "";
         setFile(null);
-        toast.success(`Inserted: ${json.inserted ?? 0}`); // optional success toast
-        if (Array.isArray(json.errors) && json.errors.length) {
+
+        toast.success(`Inserted: ${json.inserted ?? 0}`);
+        if (errs.length) {
           toast("Some rows had errors", {
-            description: `${json.errors.length} error(s) reported`,
+            description: `${errs.length} error(s) reported`,
           });
+          setShowErrorsSheet(true); // auto open the sheet if there are errors
         }
+
         router.refresh();
       }
     } catch (err) {
@@ -136,6 +156,8 @@ export default function ImportCsv() {
       setBusy(false);
     }
   }
+
+  const errorCount = errors?.length ?? 0;
 
   return (
     <div className="w-full max-w-3xl">
@@ -162,41 +184,66 @@ export default function ImportCsv() {
         <Button type="submit" disabled={busy || !file}>
           {busy ? "Importing..." : "Import CSV"}
         </Button>
+
+        {/* Trigger to open errors sheet when there are errors */}
+        {errorCount > 0 && (
+          <Sheet open={showErrorsSheet} onOpenChange={setShowErrorsSheet}>
+            <SheetTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="ml-0 sm:ml-2"
+                aria-label="Show import errors"
+              >
+                View Errors ({errorCount})
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-full sm:w-[520px]">
+              <SheetHeader>
+                <SheetTitle>Import Errors</SheetTitle>
+                <SheetDescription>
+                  {errorCount} row{errorCount === 1 ? "" : "s"} failed
+                  validation. Review the messages below.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-4 h-[70vh] overflow-auto rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[100px]">Row #</TableHead>
+                      <TableHead>Message</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {errors?.map((e) => (
+                      <TableRow key={e.row}>
+                        <TableCell className="font-medium">{e.row}</TableCell>
+                        <TableCell className="whitespace-pre-wrap">
+                          {humanizeErrorMessage(e.message)
+                            .replace("[", "")
+                            .replace("]", "")
+                            .replace('"', "")}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <SheetFooter className="mt-4">
+                <SheetClose asChild>
+                  <Button type="button">Close</Button>
+                </SheetClose>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+        )}
       </form>
 
-      {/* Success */}
-      {inserted != null && (
-        <p
-          role="status"
-          aria-live="polite"
-          className="mt-2 text-sm text-green-600"
-        >
-          Inserted: {inserted}
+      {/* Optional inline error (client-side) */}
+      {clientError && (
+        <p id="import-error" className="mt-2 text-sm text-red-600">
+          {clientError}
         </p>
-      )}
-
-      {/* Row errors table */}
-      {errors && errors.length > 0 && (
-        <div className="mt-3 rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[100px]">Row #</TableHead>
-                <TableHead>Message</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {errors.map((e) => (
-                <TableRow key={e.row}>
-                  <TableCell className="font-medium">{e.row}</TableCell>
-                  <TableCell className="whitespace-pre-wrap">
-                    {e.message}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
       )}
     </div>
   );

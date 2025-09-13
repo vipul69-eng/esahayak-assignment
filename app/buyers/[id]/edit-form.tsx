@@ -1,6 +1,5 @@
 // app/buyers/[id]/edit-form.tsx
 "use client";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -14,7 +13,6 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -24,8 +22,17 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fromBhk, fromSource, fromTimeline, toTimeline } from "@/lib/buyer";
+import {
+  fromBhk,
+  fromSource,
+  fromTimeline,
+  toTimeline,
+  fromStatus,
+  toStatus,
+  toSource,
+} from "@/lib/buyer";
 import { BHK, Source, Timeline } from "@prisma/client";
+import TagChips from "@/components/tag-chips";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatZodFlatten(err: any): string {
@@ -46,7 +53,7 @@ function formatZodFlatten(err: any): string {
   return "Update failed";
 }
 
-// Types reflect the same names used in FormData and payload
+// Types reflect the same names used in payload (tags managed separately)
 type FormValues = {
   fullName: string;
   email: string;
@@ -60,7 +67,6 @@ type FormValues = {
   timeline: string;
   source: string;
   notes?: string;
-  tags?: string; // pipe separated
   status?: string;
 };
 
@@ -69,6 +75,10 @@ export default function EditForm({ buyer }: { buyer: any }) {
   const r = useRouter();
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // NEW: manage tags as chips (typeahead suggestions come from /api/tags used by TagChips)
+  const [tags, setTags] = useState<string[]>(
+    Array.isArray(buyer.tags) ? buyer.tags : [],
+  );
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -77,15 +87,14 @@ export default function EditForm({ buyer }: { buyer: any }) {
       phone: buyer.phone ?? "",
       city: buyer.city ?? "Chandigarh",
       propertyType: buyer.propertyType ?? "Apartment",
-      bhk: buyer.bhk ?? "",
+      bhk: fromBhk(buyer.bhk as BHK) || "",
       purpose: buyer.purpose ?? "Buy",
       budgetMin: buyer.budgetMin?.toString() ?? "",
       budgetMax: buyer.budgetMax?.toString() ?? "",
-      timeline: buyer.timeline ?? "0-3m",
-      source: buyer.source ?? "Website",
+      timeline: fromTimeline(buyer.timeline as Timeline) ?? "0-3m",
+      source: fromSource(buyer.source as Source) ?? "Website",
       notes: buyer.notes ?? "",
-      tags: (buyer.tags ?? []).join("|"),
-      status: buyer.status ?? "New",
+      status: fromStatus?.(buyer.status) ?? buyer.status ?? "New",
     },
     mode: "onSubmit",
     reValidateMode: "onChange",
@@ -94,7 +103,7 @@ export default function EditForm({ buyer }: { buyer: any }) {
   async function onSubmit(values: FormValues) {
     setErr(null);
     setSaving(true);
-    console.log(values);
+
     const payload = {
       updatedAt: buyer.updatedAt,
       fullName: values.fullName,
@@ -102,17 +111,14 @@ export default function EditForm({ buyer }: { buyer: any }) {
       phone: values.phone,
       city: values.city,
       propertyType: values.propertyType,
-      bhk: fromBhk(values.bhk as BHK) || undefined,
+      bhk: values.bhk || undefined,
       purpose: values.purpose,
       budgetMin: values.budgetMin ? Number(values.budgetMin) : undefined,
       budgetMax: values.budgetMax ? Number(values.budgetMax) : undefined,
-      timeline: fromTimeline(values.timeline as Timeline),
-      source: fromSource(values.source),
+      timeline: values.timeline, // UI label
+      source: values.source, // UI label
       notes: values.notes || undefined,
-      tags: String(values.tags || "")
-        .split("|")
-        .map((s) => s.trim())
-        .filter(Boolean),
+      tags, // send array from TagChips
       status: values.status || undefined,
     };
 
@@ -135,13 +141,7 @@ export default function EditForm({ buyer }: { buyer: any }) {
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-2xl shadow-sm">
         <CardHeader>
-          <CardTitle
-            onClick={() => {
-              console.log(buyer.history);
-            }}
-          >
-            Edit Buyer
-          </CardTitle>
+          <CardTitle>Edit Buyer</CardTitle>
         </CardHeader>
         <CardContent>
           {err && (
@@ -153,7 +153,6 @@ export default function EditForm({ buyer }: { buyer: any }) {
               {err}
             </p>
           )}
-
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit)}
@@ -278,7 +277,9 @@ export default function EditForm({ buyer }: { buyer: any }) {
                     </FormItem>
                   )}
                 />
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="bhk"
@@ -336,7 +337,7 @@ export default function EditForm({ buyer }: { buyer: any }) {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="budgetMin"
@@ -376,9 +377,7 @@ export default function EditForm({ buyer }: { buyer: any }) {
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="timeline"
@@ -405,7 +404,9 @@ export default function EditForm({ buyer }: { buyer: any }) {
                     </FormItem>
                   )}
                 />
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="source"
@@ -467,38 +468,19 @@ export default function EditForm({ buyer }: { buyer: any }) {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notes</FormLabel>
-                    <FormControl>
-                      <Textarea maxLength={1000} rows={4} {...field} />
-                    </FormControl>
-                    <FormDescription>Optional</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="tags"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tags (| separated)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="luxury|near-metro|corner"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>Use | to separate tags</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* NEW: Tag chips with typeahead */}
+              <FormItem>
+                <FormLabel>Tags</FormLabel>
+                <TagChips
+                  value={tags}
+                  onChange={setTags}
+                  placeholder="hot, vip, nr…"
+                />
+                <FormDescription>
+                  Press Enter to add, Backspace to remove, or pick from
+                  suggestions.
+                </FormDescription>
+              </FormItem>
 
               <div className="pt-2">
                 <Button type="submit" disabled={saving} className="w-full">

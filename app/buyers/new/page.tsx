@@ -1,6 +1,5 @@
 // app/buyers/new/page.tsx
 "use client";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -31,6 +30,7 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
+import TagChips from "@/components/tag-chips";
 
 type FormValues = {
   fullName: string;
@@ -45,14 +45,15 @@ type FormValues = {
   timeline: string;
   source: string;
   notes?: string;
-  tags?: string;
   status?: string;
+  // Removed tags?: string; we now manage tags via TagChips (string[])
 };
 
 export default function NewBuyerPage() {
   const r = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]); // managed by TagChips
 
   const form = useForm<FormValues>({
     defaultValues: {
@@ -68,7 +69,6 @@ export default function NewBuyerPage() {
       timeline: "0-3m",
       source: "Website",
       notes: "",
-      tags: "",
       status: "New",
     },
   });
@@ -76,6 +76,7 @@ export default function NewBuyerPage() {
   async function onSubmit(values: FormValues) {
     setErr(null);
     setSubmitting(true);
+
     const payload = {
       fullName: values.fullName,
       email: values.email || "",
@@ -95,10 +96,7 @@ export default function NewBuyerPage() {
       timeline: values.timeline,
       source: values.source,
       notes: values.notes || undefined,
-      tags: String(values.tags || "")
-        .split("|")
-        .map((s) => s.trim())
-        .filter(Boolean),
+      tags, // <-- from TagChips (string[])
       status: values.status || undefined,
     };
 
@@ -225,7 +223,6 @@ export default function NewBuyerPage() {
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="propertyType"
@@ -428,33 +425,14 @@ export default function NewBuyerPage() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notes</FormLabel>
-                    <FormControl>
-                      <Textarea maxLength={1000} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="tags"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tags (| separated)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="hot|nr|vip" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormItem>
+                <FormLabel>Tags</FormLabel>
+                <TagChips
+                  value={tags}
+                  onChange={setTags}
+                  placeholder="hot, vip, nr…"
+                />
+              </FormItem>
 
               <CardFooter className="px-0 pb-0 flex flex-col sm:flex-row gap-2">
                 <Button

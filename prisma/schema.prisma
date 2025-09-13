@@ -62,11 +62,17 @@ enum Status {
   Dropped
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id        String         @id @default(uuid())
   username  String         @unique
-  password  String // bcrypt hash
+  password  String
   createdAt DateTime       @default(now())
+  role      Role           @default(USER)
   updatedAt DateTime       @updatedAt
   buyers    Buyer[]
   history   BuyerHistory[] @relation("UserChanges")

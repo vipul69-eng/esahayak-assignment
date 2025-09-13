@@ -8,6 +8,7 @@ export const signupSchema = z.object({
     .max(40)
     .regex(/^[a-zA-Z0-9._-]+$/),
   password: z.string().min(6).max(128),
+  role: z.enum(["ADMIN", "USER"]),
 });
 
 export const loginSchema = z.object({

@@ -17,6 +17,7 @@ import {
   toStatus,
 } from "@/lib/buyer";
 import { parse } from "csv-parse/sync";
+import { validateCsvRow } from "@/tests/rowValidator";
 
 const prisma = new PrismaClient();
 const MAX_ROWS = 200;
@@ -94,6 +95,15 @@ export async function POST(req: NextRequest) {
   const valid: any[] = [];
 
   records.forEach((row, idx) => {
+    const res = validateCsvRow(row);
+    if (!res.ok) {
+      errors.push({
+        row: idx + 2,
+        message: JSON.stringify(res.error.fieldErrors),
+      });
+      return;
+    }
+
     const input = {
       fullName: row.fullName,
       email: row.email || "",

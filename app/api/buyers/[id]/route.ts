@@ -33,6 +33,11 @@ export async function GET(
   });
   if (!buyer) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Allow if admin or owner
+  if (session.role !== "ADMIN" && buyer.ownerId !== session.sub) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   return NextResponse.json({ buyer });
 }
 
@@ -53,12 +58,17 @@ export async function PUT(
   const { updatedAt, ...rest } = body as any;
   if (!updatedAt)
     return NextResponse.json({ error: "Missing updatedAt" }, { status: 400 });
+  console.log(session.role, "ROLE");
 
-  const existing = await prisma.buyer.findUnique({ where: { id: params.id } });
+  const existing = await prisma.buyer.findUnique({
+    where: { id: params.id },
+  });
   if (!existing)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (existing.ownerId !== session.sub)
+  // Allow if admin or owner
+  if (session.role !== "ADMIN" && existing.ownerId !== session.sub) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   // Convert existing DB enums -> UI strings, then merge with incoming partial
   const baseInput = {
@@ -110,7 +120,6 @@ export async function PUT(
     }
     return JSON.stringify(a) === JSON.stringify(b);
   };
-
   const uiNext = {
     fullName: d.fullName,
     email: d.email?.trim() || "",
@@ -127,7 +136,6 @@ export async function PUT(
     tags: d.tags ?? [],
     status: d.status ?? baseInput.status,
   };
-
   for (const k of Object.keys(uiNext) as Array<keyof typeof uiNext>) {
     const prev = (baseInput as any)[k];
     const next = (uiNext as any)[k];
@@ -135,9 +143,7 @@ export async function PUT(
       diff[k as string] = { from: prev ?? "", to: next ?? "" };
     }
   }
-
   if (Object.keys(diff).length === 0) {
-    // Nothing changed; do not write a history entry
     return NextResponse.json({ buyer: existing });
   }
 
@@ -161,7 +167,7 @@ export async function PUT(
 
   const updated = await prisma.$transaction(async (tx) => {
     const buyer = await tx.buyer.update({
-      where: { id: params.id, updatedAt: matchTs }, // DB-level optimistic match
+      where: { id: params.id, updatedAt: matchTs },
       data: patch,
     });
     await tx.buyerHistory.create({
@@ -180,11 +186,12 @@ export async function DELETE(
   const session = await getSession();
   if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const existing = await prisma.buyer.findUnique({ where: { id: params.id } });
   if (!existing)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (existing.ownerId !== session.sub) {
+
+  // Allow if admin or owner
+  if (session.role !== "ADMIN" && existing.ownerId !== session.sub) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

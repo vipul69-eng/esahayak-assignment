@@ -33,7 +33,7 @@ export default function Filters() {
         aria-label="Search"
         defaultValue={sp.get("search") ?? ""}
         onChange={(e) => onSearch(e.target.value)}
-        placeholder="Search name/phone/email"
+        placeholder="Search name/phone/notes"
       />
 
       {/* City */}
