@@ -4,6 +4,16 @@ import Link from "next/link";
 import Filters from "./filters";
 import { getSession } from "@/lib/auth";
 import ImportCsv from "./import-csv";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 function getFirst(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,7 +24,6 @@ function getFirst(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return Array.isArray(v) ? ((v ?? "") as any) : ((v ?? "") as string);
 }
-
 function toQueryString(sp: Record<string, string | string[] | undefined>) {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) {
@@ -24,6 +33,7 @@ function toQueryString(sp: Record<string, string | string[] | undefined>) {
   }
   return qs.toString();
 }
+
 const prisma = new PrismaClient();
 const PAGE_SIZE = 10;
 
@@ -91,82 +101,137 @@ export default async function BuyersPage({
   const exportQs = toQueryString(sp as any);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 p-2">
+      {/* Header bar */}
+      <div className="flex flex-wrap items-center gap-3 justify-between">
         <h1 className="text-xl font-semibold">Buyers</h1>
-        <div className="flex gap-2">
-          <Link href="/buyers/new" className="btn">
-            New
-          </Link>
-          <Link href={`/api/buyers/export?${exportQs}`} className="btn">
-            Export CSV
-          </Link>
+        <div className="flex items-center gap-2">
+          <Button asChild>
+            <Link href="/buyers/new">New</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={`/api/buyers/export?${exportQs}`}>Export CSV</Link>
+          </Button>
+          <ImportCsv />
         </div>
-        <ImportCsv />
       </div>
 
-      <Filters />
+      {/* Filters */}
+      <div className="rounded-lg border p-3">
+        <Filters />
+      </div>
 
+      {/* Table */}
       {items.length === 0 ? (
-        <p role="status">No buyers found.</p>
+        <p role="status" className="text-sm text-muted-foreground">
+          No buyers found.
+        </p>
       ) : (
-        <table className="w-full border">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>City</th>
-              <th>Property</th>
-              <th>Budget</th>
-              <th>Timeline</th>
-              <th>Status</th>
-              <th>Updated</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((b) => {
-              const isOwner = session?.sub === b.ownerId;
-              return (
-                <tr key={b.id}>
-                  <td>{b.fullName}</td>
-                  <td>{b.phone}</td>
-                  <td>{b.city}</td>
-                  <td>{b.propertyType}</td>
-                  <td>
-                    {b.budgetMin ?? ""}
-                    {b.budgetMin || b.budgetMax ? " - " : ""}
-                    {b.budgetMax ?? ""}
-                  </td>
-                  <td>{b.timeline}</td>
-                  <td>{b.status}</td>
-                  <td>{new Date(b.updatedAt).toLocaleString()}</td>
-                  <td className="whitespace-nowrap">
-                    <Link href={`/buyers/${b.id}`}>View</Link>
-                    {isOwner && (
-                      <>
-                        {" "}
-                        <Link href={`/buyers/${b.id}`}>Edit</Link>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>City</TableHead>
+                <TableHead>Property</TableHead>
+                <TableHead>Budget</TableHead>
+                <TableHead>Timeline</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Updated</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((b) => {
+                const isOwner = session?.sub === b.ownerId;
+                const budget =
+                  (b.budgetMin ?? "") || (b.budgetMax ?? "")
+                    ? `${b.budgetMin ?? ""}${
+                        b.budgetMin || b.budgetMax ? " - " : ""
+                      }${b.budgetMax ?? ""}`
+                    : "";
+                return (
+                  <TableRow key={b.id}>
+                    <TableCell className="font-medium">{b.fullName}</TableCell>
+                    <TableCell>{b.phone}</TableCell>
+                    <TableCell>{b.city}</TableCell>
+                    <TableCell>{b.propertyType}</TableCell>
+                    <TableCell>{budget}</TableCell>
+                    <TableCell>
+                      {b.timeline ? (
+                        <Badge variant="outline">{b.timeline}</Badge>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {b.status ? (
+                        <Badge
+                          variant={
+                            b.status.toLowerCase() === "hot"
+                              ? "destructive"
+                              : b.status.toLowerCase() === "warm"
+                                ? "secondary"
+                                : "outline"
+                          }
+                        >
+                          {b.status}
+                        </Badge>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {new Date(b.updatedAt).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <Link
+                        href={`/buyers/${b.id}`}
+                        className="text-primary hover:underline"
+                      >
+                        View
+                      </Link>
+                      {isOwner && (
+                        <>
+                          <span className="mx-1 text-muted-foreground">·</span>
+                          <Link
+                            href={`/buyers/${b.id}`}
+                            className="text-primary hover:underline"
+                          >
+                            Edit
+                          </Link>
+                        </>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
-      <nav className="flex gap-2" aria-label="Pagination">
+      {/* Pagination */}
+      <nav
+        className="flex flex-wrap items-center gap-2 justify-center"
+        aria-label="Pagination"
+      >
         {Array.from({ length: pages }, (_, i) => i + 1).map((n) => {
           const current = new URLSearchParams(sp.toString());
           current.set("page", String(n));
+          const isActive = n === page;
           return (
             <Link
               key={n}
               href={`/buyers?${current.toString()}`}
-              aria-current={n === page ? "page" : undefined}
-              className={n === page ? "font-semibold" : ""}
+              aria-current={isActive ? "page" : undefined}
+              className={[
+                "px-3 py-1.5 rounded-md border text-sm",
+                isActive
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "hover:bg-muted",
+              ].join(" ")}
             >
               {n}
             </Link>

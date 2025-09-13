@@ -154,7 +154,7 @@ export function toCsv(rows: Array<Record<string, any>>): string {
     const s = v == null ? "" : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const headers = Object.keys(rows ?? {});
+  const headers = Object.keys(rows[0] ?? {});
   const lines = [
     headers.map(esc).join(","),
     ...rows.map((r) => headers.map((h) => esc(r[h])).join(",")),

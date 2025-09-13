@@ -2,9 +2,18 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { toast } from "sonner";
 
 type RowError = { row: number; message: string };
-
 const REQUIRED_HEADERS = [
   "fullName",
   "email",
@@ -45,16 +54,20 @@ export default function ImportCsv() {
     setErrors(null);
     setClientError(null);
 
+    const showErr = (msg: string) => {
+      setClientError(msg);
+      toast.error(msg); // toast like alert
+    };
+
     if (!file) {
-      setClientError("Please choose a CSV file.");
+      showErr("Please choose a CSV file.");
       return;
     }
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      setClientError("Only .csv files are allowed.");
+      showErr("Only .csv files are allowed.");
       return;
     }
 
-    // Robust read: snapshot + decode to text
     let text = "";
     try {
       const buf = await file.arrayBuffer();
@@ -63,7 +76,7 @@ export default function ImportCsv() {
       });
       text = await new Response(cloned).text();
     } catch {
-      setClientError(
+      showErr(
         "Could not read the file. Please re-select the CSV and try again.",
       );
       return;
@@ -71,33 +84,30 @@ export default function ImportCsv() {
 
     const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
     if (lines.length === 0) {
-      setClientError("CSV is empty.");
+      showErr("CSV is empty.");
       return;
     }
 
-    // Trim BOM, quotes, and whitespace from headers
     const header = lines[0].split(",").map((h) =>
       h
         .replace(/^\uFEFF/, "")
         .replace(/^"|"$/g, "")
         .trim(),
     );
-
     const missing = REQUIRED_HEADERS.filter((h) => !header.includes(h));
     if (missing.length) {
-      setClientError(`Missing headers: ${missing.join(", ")}`);
+      showErr(`Missing headers: ${missing.join(", ")}`);
       return;
     }
 
     const dataRowCount = Math.max(0, lines.length - 1);
     if (dataRowCount > 200) {
-      setClientError("Too many rows (max 200).");
+      showErr("Too many rows (max 200).");
       return;
     }
 
     const fd = new FormData();
     fd.append("file", file);
-
     setBusy(true);
     try {
       const res = await fetch("/api/buyers/import", {
@@ -106,82 +116,86 @@ export default function ImportCsv() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setClientError(json.error || "Import failed");
+        showErr(json.error || "Import failed");
       } else {
         setInserted(json.inserted ?? 0);
         setErrors(Array.isArray(json.errors) ? json.errors : []);
-        // Reset input and refresh list after success
         if (inputRef.current) inputRef.current.value = "";
         setFile(null);
+        toast.success(`Inserted: ${json.inserted ?? 0}`); // optional success toast
+        if (Array.isArray(json.errors) && json.errors.length) {
+          toast("Some rows had errors", {
+            description: `${json.errors.length} error(s) reported`,
+          });
+        }
         router.refresh();
       }
-    } catch (err: any) {
-      setClientError(err?.message || "Import failed");
+    } catch (err) {
+      showErr((err as Error)?.message || "Import failed");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="w-full max-w-3xl">
       <form
         onSubmit={onImport}
-        className="flex items-center gap-2"
+        className="flex flex-col sm:flex-row items-start sm:items-center gap-2"
         aria-describedby="import-error"
       >
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".csv,text/csv,application/vnd.ms-excel"
-          onChange={onFileChange}
-          aria-label="Choose CSV file"
-        />
-        <button type="submit" disabled={busy || !file} className="btn">
+        {/* Styled file picker (keeps native input for a11y) */}
+        <label className="inline-flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted transition-colors">
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv,text/csv,application/vnd.ms-excel"
+            onChange={onFileChange}
+            aria-label="Choose CSV file"
+            className="hidden"
+          />
+          <span className="text-sm">
+            {file ? file.name : "Choose CSV file"}
+          </span>
+        </label>
+
+        <Button type="submit" disabled={busy || !file}>
           {busy ? "Importing..." : "Import CSV"}
-        </button>
+        </Button>
       </form>
 
-      {clientError && (
-        <p
-          id="import-error"
-          role="alert"
-          aria-live="polite"
-          className="text-red-600"
-        >
-          {clientError}
-        </p>
-      )}
-
+      {/* Success */}
       {inserted != null && (
-        <p role="status" aria-live="polite" className="text-green-700">
+        <p
+          role="status"
+          aria-live="polite"
+          className="mt-2 text-sm text-green-600"
+        >
           Inserted: {inserted}
         </p>
       )}
 
+      {/* Row errors table */}
       {errors && errors.length > 0 && (
-        <div className="mt-3">
-          <p className="font-semibold">Row Errors</p>
-          <table className="min-w-[480px] border">
-            <thead>
-              <tr>
-                <th className="border px-2 py-1">Row #</th>
-                <th className="border px-2 py-1">Message</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="mt-3 rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">Row #</TableHead>
+                <TableHead>Message</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {errors.map((e) => (
-                <tr key={e.row}>
-                  <td className="border px-2 py-1">{e.row}</td>
-                  <td
-                    className="border px-2 py-1"
-                    style={{ whiteSpace: "pre-wrap" }}
-                  >
+                <TableRow key={e.row}>
+                  <TableCell className="font-medium">{e.row}</TableCell>
+                  <TableCell className="whitespace-pre-wrap">
                     {e.message}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

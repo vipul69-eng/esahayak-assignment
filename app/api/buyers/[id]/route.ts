@@ -44,6 +44,11 @@ export async function PUT(
   if (!session)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Optional: simple rate limit per user
+  if (!rateLimit?.(`update:${session.sub}`)) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  }
+
   const body = await req.json();
   const { updatedAt, ...rest } = body as any;
   if (!updatedAt)
@@ -67,8 +72,6 @@ export async function PUT(
     budgetMin: existing.budgetMin ?? undefined,
     budgetMax: existing.budgetMax ?? undefined,
     timeline: fromTimeline(existing.timeline),
-    // Source is already user-facing if your enum members are mapped to "Walk-in"
-    // If needed, normalize WALK_IN -> "Walk-in" here:
     source: existing.source === "WALK_IN" ? "Walk-in" : existing.source,
     notes: existing.notes ?? undefined,
     tags: existing.tags ?? [],
@@ -76,7 +79,7 @@ export async function PUT(
   };
   const input = { ...baseInput, ...rest };
 
-  // Validate merged input (ensures bhk is present when Apartment/Villa)
+  // Validate merged input with Zod
   const parsed = buyerSchema.safeParse(input);
   if (!parsed.success) {
     return NextResponse.json(
@@ -95,33 +98,76 @@ export async function PUT(
     );
   }
 
-  // Apply update
-  const updated = await prisma.buyer.update({
-    where: { id: params.id, updatedAt: matchTs },
-    data: {
-      fullName: d.fullName,
-      email: d.email?.trim() ? d.email : null,
-      phone: d.phone,
-      city: d.city as City,
-      propertyType: d.propertyType as PropertyType,
-      bhk: toBhk(d.bhk ?? null),
-      purpose: d.purpose as Purpose,
-      budgetMin: d.budgetMin ?? null,
-      budgetMax: d.budgetMax ?? null,
-      timeline: toTimeline(d.timeline),
-      source: toSource(d.source),
-      status: toStatus(d.status ?? null),
-      notes: d.notes ?? null,
-      tags: d.tags ?? [],
-    },
-  });
+  // Compute field-level diff using UI-string values for readability in history
+  const diff: Record<string, { from: any; to: any }> = {};
+  const compare = (a: any, b: any) => {
+    if (a instanceof Date && b instanceof Date)
+      return a.getTime() === b.getTime();
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+      return true;
+    }
+    return JSON.stringify(a) === JSON.stringify(b);
+  };
 
-  await prisma.buyerHistory.create({
-    data: {
-      buyerId: params.id,
-      changedBy: session.sub,
-      diff: { updated: true },
-    },
+  const uiNext = {
+    fullName: d.fullName,
+    email: d.email?.trim() || "",
+    phone: d.phone,
+    city: d.city,
+    propertyType: d.propertyType,
+    bhk: d.bhk || undefined,
+    purpose: d.purpose,
+    budgetMin: d.budgetMin ?? undefined,
+    budgetMax: d.budgetMax ?? undefined,
+    timeline: d.timeline,
+    source: d.source,
+    notes: d.notes ?? undefined,
+    tags: d.tags ?? [],
+    status: d.status ?? baseInput.status,
+  };
+
+  for (const k of Object.keys(uiNext) as Array<keyof typeof uiNext>) {
+    const prev = (baseInput as any)[k];
+    const next = (uiNext as any)[k];
+    if (!compare(prev, next)) {
+      diff[k as string] = { from: prev ?? "", to: next ?? "" };
+    }
+  }
+
+  if (Object.keys(diff).length === 0) {
+    // Nothing changed; do not write a history entry
+    return NextResponse.json({ buyer: existing });
+  }
+
+  // Map to DB enums and persist update + history atomically
+  const patch = {
+    fullName: d.fullName,
+    email: d.email?.trim() ? d.email : null,
+    phone: d.phone,
+    city: d.city as City,
+    propertyType: d.propertyType as PropertyType,
+    bhk: toBhk(d.bhk ?? null),
+    purpose: d.purpose as Purpose,
+    budgetMin: d.budgetMin ?? null,
+    budgetMax: d.budgetMax ?? null,
+    timeline: toTimeline(d.timeline),
+    source: toSource(d.source),
+    status: toStatus(d.status ?? null),
+    notes: d.notes ?? null,
+    tags: d.tags ?? [],
+  };
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const buyer = await tx.buyer.update({
+      where: { id: params.id, updatedAt: matchTs }, // DB-level optimistic match
+      data: patch,
+    });
+    await tx.buyerHistory.create({
+      data: { buyerId: params.id, changedBy: session.sub, diff },
+    });
+    return buyer;
   });
 
   return NextResponse.json({ buyer: updated });
