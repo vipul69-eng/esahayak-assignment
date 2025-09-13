@@ -1,4 +1,3 @@
-// app/api/tags/route.ts
 import { NextRequest } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { getSession } from "@/lib/auth";

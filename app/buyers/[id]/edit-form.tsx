@@ -1,4 +1,3 @@
-// app/buyers/[id]/edit-form.tsx
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";

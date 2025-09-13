@@ -1,5 +1,4 @@
 /** eslint-disable @typescript-eslint/no-explicit-any */
-// app/buyers/[id]/page.tsx
 import { PrismaClient } from "@prisma/client";
 import EditForm from "./edit-form";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";

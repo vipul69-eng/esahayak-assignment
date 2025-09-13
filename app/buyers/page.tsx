@@ -1,4 +1,3 @@
-// app/buyers/page.tsx
 import { PrismaClient } from "@prisma/client";
 import Link from "next/link";
 import Filters from "./filters";

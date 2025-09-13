@@ -1,4 +1,3 @@
-// app/api/auth/signup/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { signupSchema } from "@/lib/validations/auth";
 import { PrismaClient, Role } from "@prisma/client";

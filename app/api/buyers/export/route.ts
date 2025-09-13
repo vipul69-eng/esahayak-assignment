@@ -1,4 +1,3 @@
-// app/api/buyers/export/route.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest } from "next/server";
 import { PrismaClient, City, PropertyType } from "@prisma/client";

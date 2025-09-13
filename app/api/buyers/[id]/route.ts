@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/buyers/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient, City, PropertyType, Purpose } from "@prisma/client";
 import { getSession } from "@/lib/auth";

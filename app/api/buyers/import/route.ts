@@ -1,13 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/buyers/import/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import {
-  PrismaClient,
-  City,
-  PropertyType,
-  Purpose,
-  type Prisma,
-} from "@prisma/client";
+import { PrismaClient, City, PropertyType, Purpose } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import {
   buyerSchema,
@@ -17,8 +9,10 @@ import {
   toStatus,
 } from "@/lib/buyer";
 import { parse } from "csv-parse/sync";
-import { validateCsvRow } from "@/tests/rowValidator";
+import { validateCsvRow } from "@/lib/validations/rowValidator";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Any = any;
 const prisma = new PrismaClient();
 const MAX_ROWS = 200;
 const REQUIRED_HEADERS = [
@@ -57,7 +51,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Could not read file" }, { status: 400 });
   }
 
-  let records: any[] = [];
+  let records: Any[] = [];
   try {
     records = parse(text, {
       bom: true, // handle UTF-8 BOM in header
@@ -92,7 +86,7 @@ export async function POST(req: NextRequest) {
   }
 
   const errors: Array<{ row: number; message: string }> = [];
-  const valid: any[] = [];
+  const valid: Any[] = [];
 
   records.forEach((row, idx) => {
     const res = validateCsvRow(row);
@@ -151,7 +145,7 @@ export async function POST(req: NextRequest) {
         tags: input.tags ?? [],
         ownerId: session.sub,
       });
-    } catch (e: any) {
+    } catch (e: Any) {
       errors.push({
         row: idx + 2,
         message: e?.message || "Invalid enum/value",

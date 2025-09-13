@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// src/lib/buyers.ts
 import { z } from "zod";
 import { BHK, Timeline, Source, Status } from "@prisma/client";
 

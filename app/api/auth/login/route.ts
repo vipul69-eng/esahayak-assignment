@@ -1,4 +1,3 @@
-// app/api/auth/login/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { loginSchema } from "@/lib/validations/auth";
 import { PrismaClient } from "@prisma/client";
@@ -26,7 +25,11 @@ export async function POST(req: NextRequest) {
   if (!ok)
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
 
-  await createSessionCookie({ sub: user.id, username: user.username });
+  await createSessionCookie({
+    sub: user.id,
+    username: user.username,
+    role: user.role,
+  });
 
   return NextResponse.json({ user: { id: user.id, username: user.username } });
 }

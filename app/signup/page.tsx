@@ -1,4 +1,3 @@
-// app/signup/page.tsx
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -22,6 +21,8 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Any = any;
 export default function SignupPage() {
   const r = useRouter();
   const [form, setForm] = useState({
@@ -113,7 +114,7 @@ export default function SignupPage() {
             {err && (
               <Alert id="form-error" role="alert" variant="destructive">
                 <AlertDescription>
-                  {JSON.stringify(err.fieldErrors)}
+                  {JSON.stringify((err as Any).fieldErrors)}
                 </AlertDescription>
               </Alert>
             )}
