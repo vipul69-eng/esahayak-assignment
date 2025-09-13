@@ -46,7 +46,8 @@ export async function clearSessionCookie() {
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const c = await cookies();
+  const token = c.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, getSecretKey());

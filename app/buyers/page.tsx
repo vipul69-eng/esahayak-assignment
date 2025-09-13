@@ -2,40 +2,55 @@
 import { PrismaClient } from "@prisma/client";
 import Link from "next/link";
 import Filters from "./filters";
+import { getSession } from "@/lib/auth";
+import ImportCsv from "./import-csv";
 
-const prisma = new PrismaClient();
-const PAGE_SIZE = 10;
+function getFirst(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sp: any,
+  key: string,
+): string {
+  const v = sp[key];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return Array.isArray(v) ? ((v ?? "") as any) : ((v ?? "") as string);
+}
 
 function toQueryString(sp: Record<string, string | string[] | undefined>) {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) {
     if (v == null) continue;
-    if (Array.isArray(v)) v.forEach((val) => qs.append(k, String(val)));
-    else qs.set(k, String(v));
+    if (Array.isArray(v)) v.forEach((val) => qs.append(k, val));
+    else qs.set(k, v);
   }
   return qs.toString();
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Any = any;
+const prisma = new PrismaClient();
+const PAGE_SIZE = 10;
+
 export default async function BuyersPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<URLSearchParams>;
 }) {
-  const page = Math.max(1, parseInt(String(searchParams.page ?? "1")));
-  const search = String(searchParams.search ?? "").trim();
-  const city = String(searchParams.city ?? "");
-  const propertyType = String(searchParams.propertyType ?? "");
-  const status = String(searchParams.status ?? "");
-  const timeline = String(searchParams.timeline ?? "");
-  const [sortField, sortDir] = (
-    (searchParams.sort as string) || "updatedAt:desc"
-  ).split(":");
-  const orderBy = {
-    [sortField]: sortDir?.toLowerCase() === "asc" ? "asc" : "desc",
-  } as const;
+  const sp = await searchParams; // Next 15: await dynamic API
+  const session = await getSession();
 
-  const where: Any = {};
+  const page = Math.max(1, parseInt(getFirst(sp, "page") || "1"));
+  const search = (getFirst(sp, "search") || "").trim();
+  const city = getFirst(sp, "city");
+  const propertyType = getFirst(sp, "propertyType");
+  const status = getFirst(sp, "status");
+  const timeline = getFirst(sp, "timeline");
+
+  const sortRaw = getFirst(sp, "sort") || "updatedAt:desc";
+  const [sortField, sortDir] = sortRaw.split(":");
+  const orderBy = {
+    [sortField || "updatedAt"]:
+      (sortDir || "desc").toLowerCase() === "asc" ? "asc" : "desc",
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {};
   if (city) where.city = city;
   if (propertyType) where.propertyType = propertyType;
   if (status) where.status = status;
@@ -66,11 +81,14 @@ export default async function BuyersPage({
         timeline: true,
         status: true,
         updatedAt: true,
+        ownerId: true,
       },
     }),
   ]);
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const exportQs = toQueryString(sp as any);
 
   return (
     <div className="space-y-4">
@@ -80,13 +98,11 @@ export default async function BuyersPage({
           <Link href="/buyers/new" className="btn">
             New
           </Link>
-          <Link
-            href={`/api/buyers/export?${toQueryString(searchParams as Any).toString()}`}
-            className="btn"
-          >
+          <Link href={`/api/buyers/export?${exportQs}`} className="btn">
             Export CSV
           </Link>
         </div>
+        <ImportCsv />
       </div>
 
       <Filters />
@@ -109,38 +125,46 @@ export default async function BuyersPage({
             </tr>
           </thead>
           <tbody>
-            {items.map((b) => (
-              <tr key={b.id}>
-                <td>{b.fullName}</td>
-                <td>{b.phone}</td>
-                <td>{b.city}</td>
-                <td>{b.propertyType}</td>
-                <td>
-                  {b.budgetMin ?? ""}
-                  {b.budgetMin || b.budgetMax ? " - " : ""}
-                  {b.budgetMax ?? ""}
-                </td>
-                <td>{b.timeline}</td>
-                <td>{b.status}</td>
-                <td>{new Date(b.updatedAt).toLocaleString()}</td>
-                <td>
-                  <Link href={`/buyers/${b.id}`}>View / Edit</Link>
-                </td>
-              </tr>
-            ))}
+            {items.map((b) => {
+              const isOwner = session?.sub === b.ownerId;
+              return (
+                <tr key={b.id}>
+                  <td>{b.fullName}</td>
+                  <td>{b.phone}</td>
+                  <td>{b.city}</td>
+                  <td>{b.propertyType}</td>
+                  <td>
+                    {b.budgetMin ?? ""}
+                    {b.budgetMin || b.budgetMax ? " - " : ""}
+                    {b.budgetMax ?? ""}
+                  </td>
+                  <td>{b.timeline}</td>
+                  <td>{b.status}</td>
+                  <td>{new Date(b.updatedAt).toLocaleString()}</td>
+                  <td className="whitespace-nowrap">
+                    <Link href={`/buyers/${b.id}`}>View</Link>
+                    {isOwner && (
+                      <>
+                        {" "}
+                        <Link href={`/buyers/${b.id}`}>Edit</Link>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
 
       <nav className="flex gap-2" aria-label="Pagination">
         {Array.from({ length: pages }, (_, i) => i + 1).map((n) => {
-          const usp = new URLSearchParams(searchParams.toString());
-
-          usp.set("page", String(n));
+          const current = new URLSearchParams(sp.toString());
+          current.set("page", String(n));
           return (
             <Link
               key={n}
-              href={`/buyers?${usp.toString()}`}
+              href={`/buyers?${current.toString()}`}
               aria-current={n === page ? "page" : undefined}
               className={n === page ? "font-semibold" : ""}
             >

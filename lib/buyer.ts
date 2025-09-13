@@ -161,3 +161,42 @@ export function toCsv(rows: Array<Record<string, any>>): string {
   ];
   return lines.join("\n");
 }
+
+// lib/buyer.ts (additions)
+export const fromStatus = (s: string): string => {
+  switch (s) {
+    case "NEW":
+      return "New";
+    case "QUALIFIED":
+      return "Qualified";
+    case "CONTACTED":
+      return "Contacted";
+    case "VISITED":
+      return "Visited";
+    case "NEGOTIATION":
+      return "Negotiation";
+    case "CONVERTED":
+      return "Converted";
+    case "DROPPED":
+      return "Dropped";
+    default:
+      return s; // fallback
+  }
+};
+
+export const fromSource = (s: string): string => {
+  switch (s) {
+    case "WEBSITE":
+      return "Website";
+    case "REFERRAL":
+      return "Referral";
+    case "WALK_IN":
+      return "Walk-in";
+    case "CALL":
+      return "Call";
+    case "OTHER":
+      return "Other";
+    default:
+      return s; // fallback
+  }
+};

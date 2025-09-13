@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/buyers/import/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient, City, PropertyType, Purpose } from "@prisma/client";
+import {
+  PrismaClient,
+  City,
+  PropertyType,
+  Purpose,
+  type Prisma,
+} from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import {
   buyerSchema,
@@ -14,27 +20,67 @@ import { parse } from "csv-parse/sync";
 
 const prisma = new PrismaClient();
 const MAX_ROWS = 200;
+const REQUIRED_HEADERS = [
+  "fullName",
+  "email",
+  "phone",
+  "city",
+  "propertyType",
+  "bhk",
+  "purpose",
+  "budgetMin",
+  "budgetMax",
+  "timeline",
+  "source",
+  "notes",
+  "tags",
+  "status",
+];
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session)
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const form = await req.formData();
   const file = form.get("file") as File | null;
-  if (!file)
+  if (!file) {
     return NextResponse.json({ error: "Missing file" }, { status: 400 });
+  }
 
-  const text = await file.text();
+  let text = "";
+  try {
+    text = await file.text();
+  } catch {
+    return NextResponse.json({ error: "Could not read file" }, { status: 400 });
+  }
+
   let records: any[] = [];
   try {
     records = parse(text, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
+      bom: true, // handle UTF-8 BOM in header
+      columns: true, // objects keyed by header names
+      skip_empty_lines: true, // ignore empty lines
+      trim: true, // trim cells
     });
-  } catch (e) {
+    console.log(records);
+  } catch {
     return NextResponse.json({ error: "Invalid CSV format" }, { status: 400 });
+  }
+
+  // Optional: strict header check for clearer feedback
+  if (records.length > 0) {
+    const present = Object.keys(records[0] ?? {});
+    const missing = REQUIRED_HEADERS.filter((h) => !present.includes(h));
+
+    console.log(present);
+    if (missing.length) {
+      return NextResponse.json(
+        { error: `Missing headers: ${missing.join(", ")}` },
+        { status: 400 },
+      );
+    }
   }
 
   if (records.length > MAX_ROWS) {
@@ -48,7 +94,6 @@ export async function POST(req: NextRequest) {
   const valid: any[] = [];
 
   records.forEach((row, idx) => {
-    // Normalize headers expected by assignment
     const input = {
       fullName: row.fullName,
       email: row.email || "",
@@ -97,26 +142,37 @@ export async function POST(req: NextRequest) {
         ownerId: session.sub,
       });
     } catch (e: any) {
-      errors.push({ row: idx + 2, message: e.message || "Invalid enum/value" });
+      errors.push({
+        row: idx + 2,
+        message: e?.message || "Invalid enum/value",
+      });
     }
   });
 
-  // Insert only valid
+  // ...previous code up to building `valid` and `errors`...
+
   let inserted = 0;
   if (valid.length) {
-    await prisma.$transaction(async (tx) => {
-      for (const v of valid) {
-        const buyer = await tx.buyer.create({ data: v });
-        await tx.buyerHistory.create({
-          data: {
-            buyerId: buyer.id,
-            changedBy: session.sub,
-            diff: { imported: true },
+    // Build one write per row with nested history (1 round-trip per row)
+    const ops = valid.map((v) =>
+      prisma.buyer.create({
+        data: {
+          ...v,
+          history: {
+            create: {
+              changedBy: session.sub,
+              diff: { imported: true },
+            },
           },
-        });
-        inserted += 1;
-      }
-    });
+        },
+      }),
+    );
+
+    const created = await prisma.$transaction(ops, {
+      timeout: 20000,
+      maxWait: 10000,
+    } as Parameters<typeof prisma.$transaction>[1]);
+    inserted = created.length;
   }
 
   return NextResponse.json({ inserted, errors });

@@ -16,6 +16,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // middleware.ts (excerpt)
+  if (url.pathname.startsWith("/profile")) {
+    if (!sid) return NextResponse.redirect(new URL("/login", req.url));
+  }
+
   // Gate buyers pages and APIs
   if (
     url.pathname.startsWith("/buyers") ||
